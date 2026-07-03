@@ -1,59 +1,34 @@
-# Use Debian 11 (Bullseye) as base image
-FROM debian:bullseye-20240513-slim
+# Use Debian 11 (Bullseye) as the base image
+FROM debian:bullseye
 
-# Prevent interactive prompts during package installation
+# Set environment variables to prevent interactive prompts during apt-get
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install essential packages including Python and Jupyter
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Update and install essential dependencies, Python, and pip
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    wget \
     git \
     curl \
-    wget \
-    nano \
-    vim \
-    htop \
-    net-tools \
-    iputils-ping \
-    dnsutils \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Jupyter Notebook and JupyterLab
-RUN python3 -m pip install --no-cache-dir --upgrade pip && \
-    python3 -m pip install --no-cache-dir \
-    notebook \
+# Upgrade pip and install JupyterLab and basic scientific Python libraries
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir \
     jupyterlab \
-    jupyterhub
+    ipykernel \
+    numpy \
+    pandas \
+    matplotlib
 
-# Create user with UID 1000 (required by Binder)
-ARG NB_USER=jovyan
-ARG NB_UID=1000
-ENV USER ${NB_USER}
-ENV NB_UID ${NB_UID}
-ENV HOME /home/${NB_USER}
-
-RUN adduser --disabled-password \
-    --gecos "Default user" \
-    --uid ${NB_UID} \
-    ${NB_USER}
-
-# Set up working directory
-WORKDIR ${HOME}
-
-# Make sure the contents of the repo are in ${HOME}
-COPY . ${HOME}
-
-# Change ownership to the non-root user
-USER root
-RUN chown -R ${NB_UID}:${NB_UID} ${HOME}
-
-# Switch to non-root user
-USER ${NB_USER}
-
-# Expose Jupyter port
+# Expose the default Jupyter port (MyBinder expects the app to run on 8888)
 EXPOSE 8888
 
-# Default command (Binder will override this)
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+# Set the command to start JupyterLab
+# --allow-root is needed because custom Dockerfiles in Binder often run as root
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
